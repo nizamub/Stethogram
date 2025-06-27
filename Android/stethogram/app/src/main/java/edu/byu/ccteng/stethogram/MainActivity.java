@@ -14,14 +14,7 @@ import android.media.MediaRecorder;
 import android.media.MediaRouter;
 import android.media.audiofx.AcousticEchoCanceler;
 import android.media.audiofx.NoiseSuppressor;
-
-import androidx.annotation.NonNull;
-import androidx.core.app.ActivityCompat;
-import androidx.core.content.ContextCompat;
-import androidx.appcompat.app.AppCompatActivity;
 import android.os.Bundle;
-import android.os.ParcelFileDescriptor;
-import android.provider.MediaStore;
 import android.util.Log;
 import android.view.View;
 import android.widget.Button;
@@ -30,10 +23,14 @@ import android.widget.Switch;
 import android.widget.TextView;
 import android.widget.Toast;
 
+import androidx.annotation.NonNull;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.app.ActivityCompat;
+import androidx.core.content.ContextCompat;
+
 import com.visualizer.amplitude.AudioRecordView;
 
 import java.io.File;
-import java.io.FileDescriptor;
 import java.io.IOException;
 import java.util.Random;
 import java.util.Timer;
@@ -55,173 +52,6 @@ public class MainActivity extends AppCompatActivity {
     AudioRecordView audioRecordView;
     int amp;
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState) {
-        super.onCreate(savedInstanceState);
-        setContentView(R.layout.activity_main);
-
-        // check microphone permission
-        checkPermission(Manifest.permission.RECORD_AUDIO, RECORD_AUDIO_PERMISSION_CODE);
-
-        txtMain = (TextView) findViewById(R.id.textView);
-        txtDevice = (TextView) findViewById(R.id.txtDevice);
-
-        swDevice = (Switch) findViewById(R.id.swDevice);
-        swDevice.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                if (isChecked) {
-                    m_isRun = true;
-                } else {
-                    m_isRun = false;
-                    m_count = 0;
-                }
-            }
-        });
-
-        // start backgound thread
-        do_loopback();
-
-        swFile = (Switch) findViewById(R.id.swFile);
-        swFile.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
-            @Override
-            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
-                if (isChecked) {
-                    // TBD: begin record to file
-                } else {
-                    // TBD: end record to file
-                }
-            }
-        });
-
-        audioRecordView = findViewById(R.id.audioRecordView);
-        timer = new Timer();
-        TimerTask timerTask = new TimerTask() {
-
-            @Override
-            public void run() {
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    int currentMaxAmplitude = 10 * amp;
-                    audioRecordView.update(currentMaxAmplitude);
-                }
-            });
-            }
-        };
-        timer.scheduleAtFixedRate(timerTask, 0, 100);
-
-        Button btnRestart = (Button) findViewById(R.id.button3);
-        btnRestart.setOnClickListener(new View.OnClickListener() {
-            public void onClick(View v) {
-            // start app
-            Intent mStartActivity = new Intent(MainActivity.this, MainActivity.class);
-            int mPendingIntentId = 123456;
-            PendingIntent mPendingIntent = PendingIntent.getActivity(MainActivity.this, mPendingIntentId, mStartActivity, PendingIntent.FLAG_CANCEL_CURRENT);
-            AlarmManager mgr = (AlarmManager)MainActivity.this.getSystemService(Context.ALARM_SERVICE);
-            mgr.set(AlarmManager.RTC, System.currentTimeMillis() + 100, mPendingIntent);
-            System.exit(0);
-            }
-        });
-
-        // get selected route
-        router = (MediaRouter)getSystemService(Context.MEDIA_ROUTER_SERVICE);
-        routeSelected = router.getSelectedRoute(MediaRouter.ROUTE_TYPE_LIVE_AUDIO);
-        CharSequence name = routeSelected.getDescription();
-        if (name == null)
-            name = routeSelected.getName();
-        txtDevice.setText(name);
-        Log.i(LOG_TAG, "Selected:" + name.toString() + ":" + routeSelected.getDeviceType());
-
-        for (int i = 0; i < router.getRouteCount(); i++) {
-            // read available routes
-            MediaRouter.RouteInfo routeInfo = router.getRouteAt(i);
-            name = routeInfo.getDescription();
-            if (name == null)
-                name = routeInfo.getName();
-            Log.i(LOG_TAG, name.toString() + ":" + routeInfo.getDeviceType());
-
-            if (routeInfo.getDeviceType() == MediaRouter.RouteInfo.DEVICE_TYPE_BLUETOOTH) {
-                // save Bluetooth route
-                routeBT = routeInfo;
-            }
-        }
-
-        if (routeBT != null) {
-            // found a Bluetooth device
-            if (routeSelected.getDeviceType() != MediaRouter.RouteInfo.DEVICE_TYPE_BLUETOOTH) {
-                // select Bluetooth route
-                router.selectRoute(MediaRouter.ROUTE_TYPE_LIVE_AUDIO, routeBT);
-
-                // confirm slected route
-                routeSelected = router.getSelectedRoute(MediaRouter.ROUTE_TYPE_LIVE_AUDIO);
-                name = routeSelected.getDescription();
-                if (name == null)
-                    name = routeSelected.getName();
-                Log.i(LOG_TAG, "Selected:" + name.toString() + ":" + routeSelected.getDeviceType());
-            }
-
-            startTimer();
-        } else {
-            // no Bluetooth device
-            txtMain.setText("No Bluetooth audio device.\nPlease connect and restart app.");
-        }
-    }
-
-    // Function to check and request permission.
-    public void checkPermission(String permission, int requestCode)
-    {
-        if (ContextCompat.checkSelfPermission(MainActivity.this, permission)
-                == PackageManager.PERMISSION_DENIED) {
-
-            // Requesting the permission
-            ActivityCompat.requestPermissions(MainActivity.this,
-                    new String[] { permission },
-                    requestCode);
-        }
-    }
-
-    @Override
-    public void onRequestPermissionsResult(int requestCode,
-                                           @NonNull String[] permissions,
-                                           @NonNull int[] grantResults)
-    {
-        super
-                .onRequestPermissionsResult(requestCode,
-                        permissions,
-                        grantResults);
-
-        if (requestCode == RECORD_AUDIO_PERMISSION_CODE) {
-            if (grantResults.length > 0
-                    && grantResults[0] == PackageManager.PERMISSION_GRANTED) {
-                // microphone permission granted
-            }
-            else {
-                Toast.makeText(MainActivity.this,
-                        "Microphone Permission Denied",
-                        Toast.LENGTH_LONG)
-                        .show();
-            }
-        }
-    }
-
-    public void startTimer() {
-        timer = new Timer();
-        TimerTask timerTask = new TimerTask() {
-
-            @Override
-            public void run() {
-            runOnUiThread(new Runnable() {
-                @Override
-                public void run() {
-                    // TBD: update UI
-                }
-            });
-            }
-        };
-        timer.scheduleAtFixedRate(timerTask, 0, 1000);
-    }
-
     MediaRouter router;
     MediaRouter.RouteInfo routeSelected;
     MediaRouter.RouteInfo routeBT = null;
@@ -236,108 +66,218 @@ public class MainActivity extends AppCompatActivity {
     AcousticEchoCanceler m_canceler;
     Thread m_thread;
 
-    private void do_loopback() {
-        m_thread = new Thread() {
-            public void run() {
-                CharSequence name;
+    @Override
+    protected void onCreate(Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_main);
 
-                // check microphone permission
-                while (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO)
-                        == PackageManager.PERMISSION_DENIED) {
-                    try {
-                        // thread to sleep for 1000 milliseconds
-                        Thread.sleep(1000);
-                    } catch (Exception e) {
-                        System.out.println(e);
-                    }
-                }
+        // Request microphone permission
+        checkPermission(Manifest.permission.RECORD_AUDIO, RECORD_AUDIO_PERMISSION_CODE);
 
-                router = (MediaRouter)getSystemService(Context.MEDIA_ROUTER_SERVICE);
-                routeSelected = router.getSelectedRoute(MediaRouter.ROUTE_TYPE_LIVE_AUDIO);
+        txtMain = findViewById(R.id.textView);
+        txtDevice = findViewById(R.id.txtDevice);
+        audioRecordView = findViewById(R.id.audioRecordView);
 
-                for (int i = 0; i < router.getRouteCount(); i++) {
-                    MediaRouter.RouteInfo routeInfo = router.getRouteAt(i);
-                    name = routeInfo.getDescription();
-                    if (name == null)
-                        name = routeInfo.getName();
-                    Log.i(LOG_TAG, name.toString() + ":" + routeInfo.getDeviceType());
-
-                    if (routeInfo.getDeviceType() == MediaRouter.RouteInfo.DEVICE_TYPE_BLUETOOTH)
-                        routeBT = routeInfo;
-                }
-
-                if (routeBT != null) {
-                    // select Bluetooth route
-                    router.selectRoute(MediaRouter.ROUTE_TYPE_LIVE_AUDIO, routeBT);
-
-                    // confirm slected route
-                    routeSelected = router.getSelectedRoute(MediaRouter.ROUTE_TYPE_LIVE_AUDIO);
-                    name = routeSelected.getDescription();
-                    if (name == null)
-                        name = routeSelected.getName();
-                    Log.i(LOG_TAG, "Selected:" + name.toString() + ":" + routeSelected.getDeviceType());
-
-                    // exit thread if failed?
-                }
-
-                // stream audio
-                int buffersize = BUF_SIZE;
-                try {
-                    buffersize = AudioRecord.getMinBufferSize(SAMPLE_RATE,
-                            AudioFormat.CHANNEL_IN_MONO,
-                            AudioFormat.ENCODING_PCM_16BIT);
-
-                    if (buffersize <= BUF_SIZE) {
-                        buffersize = BUF_SIZE;
-                    }
-                    Log.i(LOG_TAG,"Initializing Audio Record and Audio Playing objects");
-
-                    m_record = new AudioRecord(MediaRecorder.AudioSource.MIC,
-                            SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO,
-                            AudioFormat.ENCODING_PCM_16BIT, buffersize * 1);
-                    if (NoiseSuppressor.isAvailable()) {
-                        m_suppressor = NoiseSuppressor.create(m_record.getAudioSessionId());
-                    }
-                    if (AcousticEchoCanceler.isAvailable()) {
-                        m_canceler = AcousticEchoCanceler.create(m_record.getAudioSessionId());
-                    }
-
-                    m_track = new AudioTrack(AudioManager.STREAM_MUSIC,
-                            SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO,
-                            AudioFormat.ENCODING_PCM_16BIT, buffersize * 1,
-                            AudioTrack.MODE_STREAM);
-
-                    m_track.setPlaybackRate(SAMPLE_RATE);
-                } catch (Throwable t) {
-                    Log.e("Error", "Initializing Audio Record and Play objects Failed "+t.getLocalizedMessage());
-                    return;
-                }
-
-                //m_isRun = true;
-
-                m_record.startRecording();
-                Log.i(LOG_TAG,"Audio Recording started");
-                m_track.play();
-                Log.i(LOG_TAG,"Audio Playing started");
-
-                while (true) { //m_isRun) {
-                    int samplesRead = m_record.read(buffer, 0, buffer.length);
-                    //Log.i(LOG_TAG,"Samples Read: " + samplesRead);
-
-                    if (m_isRun)
-                        m_track.write(buffer, 0, samplesRead);
-
-                    //amp = (int)averageAmp(buffer, samplesRead);
-                    amp = Math.abs(buffer[0]);
-
-                    yield();
-                }
-
-                //m_record.stop();
-                //m_track.stop();
-                //Log.i(LOG_TAG, "loopback exit");
+        swDevice = findViewById(R.id.swDevice);
+        swDevice.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                m_isRun = isChecked;
+                if (!isChecked) m_count = 0;
             }
-        };
+        });
+
+        swFile = findViewById(R.id.swFile);
+        swFile.setOnCheckedChangeListener(new CompoundButton.OnCheckedChangeListener() {
+            @Override
+            public void onCheckedChanged(CompoundButton buttonView, boolean isChecked) {
+                if (isChecked) {
+                    startRecordingToFile();
+                } else {
+                    stopRecordingToFile();
+                }
+            }
+        });
+
+        timer = new Timer();
+        timer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                runOnUiThread(() -> {
+                    int currentMaxAmplitude = 10 * amp;
+                    audioRecordView.update(currentMaxAmplitude);
+                });
+            }
+        }, 0, 100);
+
+        Button btnRestart = findViewById(R.id.button3);
+        btnRestart.setOnClickListener(v -> {
+            Intent restartIntent = new Intent(MainActivity.this, MainActivity.class);
+            int pendingId = 123456;
+            PendingIntent pendingIntent = PendingIntent.getActivity(MainActivity.this, pendingId, restartIntent, PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE);
+            AlarmManager mgr = (AlarmManager) getSystemService(Context.ALARM_SERVICE);
+            mgr.set(AlarmManager.RTC, System.currentTimeMillis() + 100, pendingIntent);
+            System.exit(0);
+        });
+
+        router = (MediaRouter) getSystemService(Context.MEDIA_ROUTER_SERVICE);
+        routeSelected = router.getSelectedRoute(MediaRouter.ROUTE_TYPE_LIVE_AUDIO);
+        CharSequence name = routeSelected.getDescription();
+        if (name == null) name = routeSelected.getName();
+        txtDevice.setText(name);
+        Log.i(LOG_TAG, "Selected:" + name + ":" + routeSelected.getDeviceType());
+
+        for (int i = 0; i < router.getRouteCount(); i++) {
+            MediaRouter.RouteInfo routeInfo = router.getRouteAt(i);
+            name = routeInfo.getDescription();
+            if (name == null) name = routeInfo.getName();
+            Log.i(LOG_TAG, name + ":" + routeInfo.getDeviceType());
+
+            if (routeInfo.getDeviceType() == MediaRouter.RouteInfo.DEVICE_TYPE_BLUETOOTH) {
+                routeBT = routeInfo;
+            }
+        }
+
+        if (routeBT != null && routeSelected.getDeviceType() != MediaRouter.RouteInfo.DEVICE_TYPE_BLUETOOTH) {
+            router.selectRoute(MediaRouter.ROUTE_TYPE_LIVE_AUDIO, routeBT);
+            routeSelected = router.getSelectedRoute(MediaRouter.ROUTE_TYPE_LIVE_AUDIO);
+            name = routeSelected.getDescription();
+            if (name == null) name = routeSelected.getName();
+            Log.i(LOG_TAG, "Re-selected:" + name + ":" + routeSelected.getDeviceType());
+            startTimer();
+        } else if (routeBT == null) {
+            txtMain.setText("No Bluetooth audio device.\nPlease connect and restart app.");
+        }
+
+        do_loopback();
+    }
+
+    public void checkPermission(String permission, int requestCode) {
+        if (ContextCompat.checkSelfPermission(this, permission) == PackageManager.PERMISSION_DENIED) {
+            ActivityCompat.requestPermissions(this, new String[]{permission}, requestCode);
+        }
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode,
+                                           @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        super.onRequestPermissionsResult(requestCode, permissions, grantResults);
+        if (requestCode == RECORD_AUDIO_PERMISSION_CODE) {
+            if (!(grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED)) {
+                Toast.makeText(this, "Microphone Permission Denied", Toast.LENGTH_LONG).show();
+            }
+        }
+    }
+
+    public void startTimer() {
+        timer = new Timer();
+        timer.scheduleAtFixedRate(new TimerTask() {
+            @Override
+            public void run() {
+                runOnUiThread(() -> {
+                    // Optional UI update
+                });
+            }
+        }, 0, 1000);
+    }
+
+    private void startRecordingToFile() {
+        File outputDir = getExternalFilesDir(null);
+        File outputFile = new File(outputDir, "recorded_audio.mp3");
+
+        mediaRecorder = new MediaRecorder();
+        mediaRecorder.setAudioSource(MediaRecorder.AudioSource.MIC);
+        mediaRecorder.setOutputFormat(MediaRecorder.OutputFormat.MPEG_4);
+        mediaRecorder.setOutputFile(outputFile.getAbsolutePath());
+        mediaRecorder.setAudioEncoder(MediaRecorder.AudioEncoder.AAC);
+
+        try {
+            mediaRecorder.prepare();
+            mediaRecorder.start();
+            Toast.makeText(this, "Recording started:\n" + outputFile.getAbsolutePath(), Toast.LENGTH_LONG).show();
+        } catch (IOException e) {
+            e.printStackTrace();
+            Toast.makeText(this, "Recording failed", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void stopRecordingToFile() {
+        if (mediaRecorder != null) {
+            try {
+                mediaRecorder.stop();
+            } catch (RuntimeException e) {
+                e.printStackTrace();
+            }
+            mediaRecorder.release();
+            mediaRecorder = null;
+            Toast.makeText(this, "Recording stopped", Toast.LENGTH_SHORT).show();
+        }
+    }
+
+    private void do_loopback() {
+        m_thread = new Thread(() -> {
+            while (ContextCompat.checkSelfPermission(MainActivity.this, Manifest.permission.RECORD_AUDIO)
+                    == PackageManager.PERMISSION_DENIED) {
+                try {
+                    Thread.sleep(1000);
+                } catch (Exception ignored) {}
+            }
+
+            router = (MediaRouter) getSystemService(Context.MEDIA_ROUTER_SERVICE);
+            routeSelected = router.getSelectedRoute(MediaRouter.ROUTE_TYPE_LIVE_AUDIO);
+
+            for (int i = 0; i < router.getRouteCount(); i++) {
+                MediaRouter.RouteInfo routeInfo = router.getRouteAt(i);
+                if (routeInfo.getDeviceType() == MediaRouter.RouteInfo.DEVICE_TYPE_BLUETOOTH)
+                    routeBT = routeInfo;
+            }
+
+            if (routeBT != null) {
+                router.selectRoute(MediaRouter.ROUTE_TYPE_LIVE_AUDIO, routeBT);
+                routeSelected = router.getSelectedRoute(MediaRouter.ROUTE_TYPE_LIVE_AUDIO);
+            }
+
+            int buffersize = AudioRecord.getMinBufferSize(SAMPLE_RATE,
+                    AudioFormat.CHANNEL_IN_MONO,
+                    AudioFormat.ENCODING_PCM_16BIT);
+
+            buffersize = Math.max(buffersize, BUF_SIZE);
+
+            try {
+                m_record = new AudioRecord(MediaRecorder.AudioSource.MIC,
+                        SAMPLE_RATE, AudioFormat.CHANNEL_IN_MONO,
+                        AudioFormat.ENCODING_PCM_16BIT, buffersize);
+
+                if (NoiseSuppressor.isAvailable())
+                    m_suppressor = NoiseSuppressor.create(m_record.getAudioSessionId());
+
+                if (AcousticEchoCanceler.isAvailable())
+                    m_canceler = AcousticEchoCanceler.create(m_record.getAudioSessionId());
+
+                m_track = new AudioTrack(AudioManager.STREAM_MUSIC,
+                        SAMPLE_RATE, AudioFormat.CHANNEL_OUT_MONO,
+                        AudioFormat.ENCODING_PCM_16BIT, buffersize,
+                        AudioTrack.MODE_STREAM);
+
+                m_track.setPlaybackRate(SAMPLE_RATE);
+            } catch (Throwable t) {
+                Log.e(LOG_TAG, "Audio init failed: " + t.getLocalizedMessage());
+                return;
+            }
+
+            m_record.startRecording();
+            m_track.play();
+
+            while (true) {
+                int samplesRead = m_record.read(buffer, 0, buffer.length);
+                if (m_isRun) {
+                    m_track.write(buffer, 0, samplesRead);
+                }
+                amp = Math.abs(buffer[0]);
+                Thread.yield();
+            }
+        });
 
         m_thread.start();
     }
@@ -346,7 +286,6 @@ public class MainActivity extends AppCompatActivity {
         double sum = 0;
         for (int i = 0; i < size; i++)
             sum += Math.abs(data[i]);
-
         return sum / size;
     }
 }
