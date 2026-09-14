@@ -1,0 +1,53 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --color-heart-normal: #10B981;
+    --color-heart-as: #EF4444;
+    --color-heart-mr: #F59E0B;
+    --color-heart-ms: #8B5CF6;
+    --color-heart-mvp: #06B6D4;
+  }
+
+  body {
+    @apply min-h-screen overflow-x-hidden transition-colors;
+    background-color: #FFFDF5;
+    color: #1C1917;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html.dark body {
+    background-color: #140507;
+    color: #FEF9C3;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar {
+    @apply w-1.5;
+  }
+  ::-webkit-scrollbar-track {
+    background-color: #1A0A0C;
+  }
+  ::-webkit-scrollbar-thumb {
+    background-color: #DC2626;
+    border-radius: 9999px;
+  }
+}
+
+@layer components {
+  /* Warm Red & Cream Glass Card */
+  .stetho-card {
+    @apply bg-white dark:bg-[#1E090D] border border-amber-200/70 dark:border-red-950/80 rounded-2xl shadow-sm transition-all duration-300;
+  }
+
+  .stetho-card-glow {
+    @apply border-red-500/40 shadow-[0_0_25px_-5px_rgba(220,38,38,0.25)];
+  }
+
+  /* Tactile Mobile Buttons */
+  .btn-tactile {
+    @apply active:scale-[0.98] transition-transform select-none;
+  }
+}

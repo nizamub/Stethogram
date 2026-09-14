@@ -1,0 +1,23 @@
+﻿# Web dependencies & builds
+web/node_modules/
+web/dist/
+web/.cache/
+
+# Android & Gradle
+.gradle/
+build/
+*/build/
+*.iml
+.idea/
+local.properties
+.DS_Store
+
+# Logs
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# Environment
+.env.local
+.env.*.local
